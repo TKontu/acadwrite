@@ -1,0 +1,51 @@
+# Example Chapter Outline - YAML Format
+# This demonstrates how to structure a chapter outline for AcadWrite
+
+title: "Chapter 2: Agile Software Development Methodologies"
+
+sections:
+  - heading: "Introduction to Agile"
+    level: 1
+    children:
+      - heading: "Definition and Core Principles"
+        level: 2
+      - heading: "Historical Context and Evolution"
+        level: 2
+      - heading: "Comparison with Traditional Methodologies"
+        level: 2
+
+  - heading: "Agile Frameworks"
+    level: 1
+    children:
+      - heading: "Scrum Framework"
+        level: 2
+        children:
+          - heading: "Scrum Roles and Responsibilities"
+            level: 3
+          - heading: "Sprint Planning and Execution"
+            level: 3
+      - heading: "Kanban Methodology"
+        level: 2
+      - heading: "Extreme Programming (XP)"
+        level: 2
+
+  - heading: "Benefits and Challenges"
+    level: 1
+    children:
+      - heading: "Empirical Benefits in Software Development"
+        level: 2
+      - heading: "Common Implementation Challenges"
+        level: 2
+      - heading: "Success Factors"
+        level: 2
+
+  - heading: "Case Studies"
+    level: 1
+    children:
+      - heading: "Enterprise Adoption of Agile"
+        level: 2
+      - heading: "Agile in Distributed Teams"
+        level: 2
+
+  - heading: "Conclusion"
+    level: 1

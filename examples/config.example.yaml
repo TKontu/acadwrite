@@ -1,0 +1,43 @@
+# AcadWrite Configuration Example
+# Copy this file to ~/.acadwrite/config.yaml and customize
+
+fileintel:
+  # FileIntel server URL
+  base_url: "http://localhost:8000"
+
+  # Request timeout in seconds
+  timeout: 30
+
+  # Maximum retry attempts for failed requests
+  max_retries: 3
+
+llm:
+  # LLM provider (used for claim inversion in counterargument analysis)
+  provider: "openai"
+
+  # LLM server base URL (supports OpenAI-compatible APIs like Ollama, vLLM)
+  base_url: "http://localhost:8000/v1"
+
+  # Model name
+  model: "gpt-4"
+
+  # API key (can also be set via OPENAI_API_KEY environment variable)
+  api_key: "${OPENAI_API_KEY}"
+
+  # Temperature for LLM generation (0.0-1.0)
+  temperature: 0.7
+
+writing:
+  # Default citation style: inline or footnote
+  citation_style: "footnote"
+
+  # Default writing style: formal, technical, accessible, or raw
+  style: "formal"
+
+  # Maximum words per section (default: 1000)
+  max_words: 1000
+
+# Note: You can override any setting with environment variables
+# For example:
+#   export FILEINTEL_BASE_URL="http://myserver:8000"
+#   export OPENAI_API_KEY="sk-..."
