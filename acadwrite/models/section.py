@@ -1,7 +1,7 @@
 """Data models for academic sections and citations."""
 
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -153,6 +153,78 @@ class AcademicSection(BaseModel):
             lines.append("")
 
         return "\n".join(lines)
+
+
+class MarkerOperation(str, Enum):
+    """Type of operation requested in a marker."""
+
+    EXPAND = "expand"  # Generate new content
+    EVIDENCE = "evidence"  # Add supporting evidence
+    CITATIONS = "citations"  # Add citations to existing text
+    CLARITY = "clarity"  # Improve clarity
+    CONTRADICT = "contradict"  # Find contradicting evidence
+
+
+class ExpansionMarker(BaseModel):
+    """A marker in markdown requesting AcadWrite expansion.
+
+    Syntax:
+        <!-- ACADWRITE: expand -->
+        - bullet points with context
+        - topic hints
+        <!-- END ACADWRITE -->
+
+    Or with operation specified:
+        <!-- ACADWRITE: evidence -->
+        Existing paragraph that needs citations
+        <!-- END ACADWRITE -->
+    """
+
+    operation: MarkerOperation = MarkerOperation.EXPAND
+    start_line: int  # Line number where marker starts
+    end_line: int  # Line number where marker ends
+    content: str  # Content between markers (bullets, hints, or existing text)
+    context: Optional[str] = None  # Surrounding context (previous heading, etc.)
+    heading: Optional[str] = None  # Closest heading above marker
+    heading_level: int = 1  # Level of the heading
+    params: Dict[str, str] = Field(
+        default_factory=dict
+    )  # Additional parameters from marker
+
+    @property
+    def is_expand_operation(self) -> bool:
+        """Check if this is an expand operation."""
+        return self.operation == MarkerOperation.EXPAND
+
+    @property
+    def is_evidence_operation(self) -> bool:
+        """Check if this is an evidence operation."""
+        return self.operation == MarkerOperation.EVIDENCE
+
+    @property
+    def is_citations_operation(self) -> bool:
+        """Check if this is a citations operation."""
+        return self.operation == MarkerOperation.CITATIONS
+
+    @property
+    def is_clarity_operation(self) -> bool:
+        """Check if this is a clarity operation."""
+        return self.operation == MarkerOperation.CLARITY
+
+    @property
+    def is_contradict_operation(self) -> bool:
+        """Check if this is a contradict operation."""
+        return self.operation == MarkerOperation.CONTRADICT
+
+
+class ExpandedContent(BaseModel):
+    """Result of expanding a marker."""
+
+    marker: ExpansionMarker
+    generated_content: str  # The expanded content
+    citations: List[Citation] = Field(default_factory=list)
+    success: bool = True
+    error_message: Optional[str] = None
 
 
 # Allow forward references for recursive model

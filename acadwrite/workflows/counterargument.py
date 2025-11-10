@@ -24,6 +24,31 @@ class Evidence:
     key_point: str
     relevance: str
 
+    @property
+    def citation(self) -> str:
+        """Get formatted citation from source."""
+        return self.source.citation
+
+    @property
+    def snippet(self) -> str:
+        """Get text snippet from source."""
+        return self.source.text
+
+    @property
+    def title(self) -> str:
+        """Get document title."""
+        return self.source.document_metadata.title
+
+    @property
+    def year(self) -> Optional[str]:
+        """Get publication year."""
+        return self.source.document_metadata.publication_date
+
+    @property
+    def page(self) -> Optional[int]:
+        """Get page number."""
+        return self.source.chunk_metadata.page_number
+
 
 @dataclass
 class CounterargumentReport:
@@ -104,8 +129,8 @@ class CounterargumentGenerator:
         supporting_response = await self.fileintel.query(
             collection=collection,
             question=claim,
-            rag_type="vector",
-            max_sources=max_sources_per_side,
+            search_type="vector",
+            max_results=max_sources_per_side,
         )
 
         # Use LLM to invert the claim
@@ -115,8 +140,8 @@ class CounterargumentGenerator:
         contradicting_response = await self.fileintel.query(
             collection=collection,
             question=inverted_claim,
-            rag_type="vector",
-            max_sources=max_sources_per_side,
+            search_type="vector",
+            max_results=max_sources_per_side,
         )
 
         # Build evidence lists

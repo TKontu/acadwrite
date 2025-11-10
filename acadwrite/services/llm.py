@@ -96,6 +96,41 @@ Search Query:"""
         except Exception as e:
             raise LLMError(f"Failed to invert claim: {e}")
 
+    async def generate(self, prompt: str, max_tokens: int = 1000) -> str:
+        """Generate text based on a prompt.
+
+        Args:
+            prompt: Prompt for text generation
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            Generated text
+
+        Raises:
+            LLMError: If LLM call fails
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                temperature=self.temperature,
+                max_tokens=max_tokens,
+            )
+
+            generated_text = response.choices[0].message.content
+            if generated_text:
+                return generated_text.strip()
+            else:
+                raise LLMError("LLM returned empty response")
+
+        except Exception as e:
+            raise LLMError(f"Failed to generate text: {e}")
+
     async def close(self) -> None:
         """Close the LLM client connection."""
         await self.client.close()

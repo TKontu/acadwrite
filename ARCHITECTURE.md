@@ -1,8 +1,14 @@
 # AcadWrite: Academic Writing Assistant - Architecture Overview
 
+> **Document Status**: Updated to reflect MVP 0.1 implementation (2025-11-05)
+>
+> This document has been updated from the original specification to reflect the actual implementation. See [Changelog](#changelog) for details on architectural evolution.
+
 ## Executive Summary
 
 **AcadWrite** is a lightweight academic writing tool built on top of FileIntel's hybrid RAG infrastructure. It transforms FileIntel's document intelligence capabilities into specialized workflows for scientific writing, citation management, and argument analysis.
+
+**Current Status**: MVP 0.1 complete with core generation workflows plus advanced document enhancement features.
 
 ### Core Premise
 - **FileIntel** = RAG platform (document processing, vector+graph search, citation extraction)
@@ -84,209 +90,387 @@
 
 ## Project Structure
 
+**Note**: This reflects the current implementation as of MVP 0.1. The architecture has evolved from the original specification to be more streamlined and feature-rich.
+
 ```
 acadwrite/
 ├── README.md
 ├── pyproject.toml              # Poetry/setuptools config
-├── docs/
-│   ├── ARCHITECTURE.md         # This file
-│   ├── API_SPEC.md            # FileIntel API integration details
-│   ├── WORKFLOWS.md           # Detailed workflow descriptions
-│   └── PROMPTS.md             # LLM prompt templates
+├── ARCHITECTURE.md             # This file (top-level, not in docs/)
+├── examples/
+│   └── EDITOR_INTEGRATION_GUIDE.md
 │
 ├── acadwrite/
 │   ├── __init__.py
 │   ├── __main__.py            # Entry point: python -m acadwrite
+│   ├── cli.py                 # Single-file CLI (all commands) - 722 lines
+│   ├── config.py              # Configuration management (Pydantic Settings)
 │   │
-│   ├── cli/
+│   ├── models/                # Pydantic models (organized by domain)
 │   │   ├── __init__.py
-│   │   ├── main.py            # Main CLI app (Typer)
-│   │   ├── generate.py        # 'generate' command group
-│   │   ├── citations.py       # 'citations' command group
-│   │   ├── contra.py          # 'contra' command
-│   │   └── config.py          # 'config' command
+│   │   ├── outline.py         # Outline parsing and structure models
+│   │   ├── query.py           # FileIntel API request/response models
+│   │   └── section.py         # Section, Citation, Chapter models
 │   │
-│   ├── core/
+│   ├── services/              # External service integrations (renamed from 'core')
 │   │   ├── __init__.py
-│   │   ├── fileintel_client.py    # HTTP client for FileIntel
-│   │   ├── llm_client.py          # LLM provider abstraction
-│   │   ├── config.py              # Configuration management
-│   │   └── models.py              # Pydantic models
+│   │   ├── fileintel.py       # FileIntel HTTP client (async)
+│   │   ├── llm.py             # LLM provider abstraction (OpenAI/Anthropic)
+│   │   └── formatter.py       # Citation formatting service
 │   │
-│   ├── workflows/
+│   ├── workflows/             # High-level academic writing workflows
 │   │   ├── __init__.py
-│   │   ├── section_generator.py   # Single section generation
-│   │   ├── chapter_generator.py   # Multi-section from outline
-│   │   ├── counterargument.py     # Counterargument discovery
-│   │   └── outline_parser.py      # Parse YAML/MD outlines
+│   │   ├── section_generator.py      # Generate single section with citations
+│   │   ├── chapter_processor.py      # Process outline → full chapter
+│   │   ├── counterargument.py        # Find contradicting evidence
+│   │   ├── citation_manager.py       # Citation extraction/validation/export
+│   │   ├── document_processor.py     # Smart enhancement of existing docs **NEW**
+│   │   └── markdown_chunker.py       # Semantic markdown chunking **NEW**
 │   │
-│   ├── formatters/
-│   │   ├── __init__.py
-│   │   ├── markdown.py            # Markdown formatting
-│   │   ├── citations.py           # Citation format conversion
-│   │   ├── footnotes.py           # Footnote management
-│   │   └── bibtex.py              # BibTeX export
+│   ├── formatters/            # (Empty - functionality in services/formatter.py)
+│   │   └── __init__.py
 │   │
-│   ├── prompts/
-│   │   ├── __init__.py
-│   │   ├── templates.py           # Prompt template loader
-│   │   ├── section_writer.txt     # Section generation prompt
-│   │   ├── claim_inverter.txt     # Counterargument prompt
-│   │   └── synthesis.txt          # Multi-source synthesis
+│   ├── prompts/               # (Empty - prompts are inline in code)
+│   │   └── __init__.py
 │   │
-│   └── utils/
-│       ├── __init__.py
-│       ├── text_processing.py     # Text manipulation utilities
-│       └── console.py             # Rich console helpers
+│   └── utils/                 # (Empty - utilities integrated into other modules)
+│       └── __init__.py
 │
 └── tests/
-    ├── __init__.py
-    ├── conftest.py                # Pytest fixtures
-    ├── test_fileintel_client.py
-    ├── test_section_generator.py
-    ├── test_counterargument.py
-    └── test_formatters.py
+    ├── unit/                  # Unit tests with mocked dependencies
+    │   ├── test_chapter_processor.py
+    │   ├── test_citation_manager.py
+    │   ├── test_counterargument.py
+    │   ├── test_document_processor.py
+    │   ├── test_fileintel_client.py
+    │   ├── test_formatters.py
+    │   ├── test_llm_client.py
+    │   ├── test_markdown_chunker.py
+    │   ├── test_models.py
+    │   └── test_section_generator.py
+    │
+    └── integration/           # End-to-end tests with real FileIntel
+        ├── conftest.py
+        ├── test_chapter_processor_integration.py
+        ├── test_citation_manager_integration.py
+        ├── test_counterargument_integration.py
+        ├── test_document_processor_integration.py
+        ├── test_end_to_end.py
+        ├── test_fileintel_integration.py
+        └── test_section_generator_integration.py
 ```
+
+### Architectural Decisions
+
+**Why single-file CLI?** At 722 lines, `cli.py` remains maintainable. All commands use Typer sub-apps for organization. If it grows beyond 1000 lines, we'll split it.
+
+**Why `services/` instead of `core/`?** Better semantic clarity - these are external service integrations (FileIntel, LLM providers, formatters).
+
+**Why `models/` package?** Separation by domain (outline, query, section) is clearer than a monolithic models.py file.
+
+**Why empty `formatters/`, `prompts/`, `utils/`?**
+- **formatters/**: Citation formatting consolidated in `services/formatter.py` and model methods
+- **prompts/**: Prompts are inline in code (see `llm.py`) - easier to maintain and version
+- **utils/**: No generic utilities needed yet; domain-specific logic lives in respective modules
 
 ---
 
 ## Core Components
 
-### 1. FileIntel Client (`core/fileintel_client.py`)
+### 1. FileIntel Client (`services/fileintel.py`)
 
-**Responsibility**: HTTP API wrapper for FileIntel
+**Responsibility**: Async HTTP API wrapper for FileIntel RAG platform
 
 ```python
 class FileIntelClient:
     """Async HTTP client for FileIntel RAG platform"""
-    
+
     async def query(
         self,
         collection: str,
-        query: str,
+        question: str,
         rag_type: str = "auto"
     ) -> QueryResponse
-    
-    async def get_document(self, doc_id: str) -> Document
-    
-    async def list_collections(self) -> List[Collection]
-    
+
+    async def list_collections(self) -> List[str]
+
     async def health_check(self) -> bool
+
+    # Context manager support
+    async def __aenter__(self) -> "FileIntelClient"
+    async def __aexit__(self, *args) -> None
 ```
 
 **Key Features**:
 - Async/await for non-blocking operations
-- Automatic retry with exponential backoff
-- Response parsing into Pydantic models
-- Error handling with rich error messages
+- Automatic retry with exponential backoff (via httpx)
+- Response parsing into Pydantic models (QueryResponse)
+- Rich error messages with custom exceptions (FileIntelError, FileIntelConnectionError)
+- Context manager support for clean resource management
+
+**Actual Implementation**: 213 lines in `services/fileintel.py`
 
 ---
 
 ### 2. Section Generator (`workflows/section_generator.py`)
 
-**Responsibility**: Generate single academic section with citations
+**Responsibility**: Generate single academic section with citations from FileIntel
 
 ```python
 class SectionGenerator:
-    """Generate academic section from heading + context"""
-    
-    async def generate(
+    """Generate academic section from heading + optional context"""
+
+    async def generate_section(
         self,
         heading: str,
         collection: str,
-        context: Optional[str] = None,
-        style: CitationStyle = CitationStyle.FOOTNOTE
+        previous_content: Optional[str] = None,
+        max_words: int = 500
     ) -> Section
 ```
 
 **Process**:
-1. Query FileIntel with heading as query
-2. Parse response (already contains citations)
-3. Reformat as academic markdown section
-4. Convert inline citations to chosen style
-5. Generate bibliography/footnotes
+1. Build query from heading + optional previous section context
+2. Query FileIntel (response already includes inline citations)
+3. Parse response into Section model
+4. Extract citations from FileIntel sources
+5. Apply word limit if specified
+6. Return Section with content + citation list
+
+**Features**:
+- Context-aware generation (uses previous section for coherence)
+- Word count limits
+- Automatic citation extraction from FileIntel response
+- Support for different RAG types (vector/graph/hybrid)
+
+**Actual Implementation**: 218 lines in `workflows/section_generator.py`
 
 ---
 
-### 3. Chapter Generator (`workflows/chapter_generator.py`)
+### 3. Chapter Processor (`workflows/chapter_processor.py`)
 
-**Responsibility**: Process outline → full chapter
+**Responsibility**: Process hierarchical outline → full chapter with citations
 
 ```python
-class ChapterGenerator:
-    """Generate complete chapter from outline"""
-    
-    async def generate_from_outline(
+class ChapterProcessor:
+    """Generate complete chapter from YAML/Markdown outline"""
+
+    async def process_outline(
         self,
-        outline_path: str,
+        outline: Outline,
         collection: str,
-        output_dir: str
+        output_path: Optional[str] = None
     ) -> Chapter
+
+    async def process_recursive(
+        self,
+        node: OutlineNode,
+        level: int,
+        collection: str,
+        previous_content: str = ""
+    ) -> Tuple[str, List[Citation], str]
 ```
 
 **Process**:
-1. Parse outline (YAML/Markdown)
-2. For each section:
-   - Generate content using SectionGenerator
-   - Pass previous section as context
-3. Assemble sections into chapter
-4. Deduplicate citations
+1. Parse outline (YAML/Markdown) into tree structure
+2. Recursively process each node (depth-first):
+   - Generate section content using SectionGenerator
+   - Pass previous section content as context
+   - Accumulate citations
+3. Assemble sections into complete chapter
+4. Deduplicate citations globally
 5. Generate unified bibliography
+6. Output as single file or per-section files
+
+**Features**:
+- Recursive outline processing (handles nested headings)
+- Context propagation between sections
+- Citation deduplication across entire chapter
+- Multiple output formats (single markdown or per-section files)
+- Progress tracking with Rich console
+
+**Actual Implementation**: 367 lines in `workflows/chapter_processor.py`
 
 ---
 
 ### 4. Counterargument Discovery (`workflows/counterargument.py`)
 
-**Responsibility**: Find contradicting evidence
+**Responsibility**: Find supporting and contradicting evidence for claims
 
 ```python
 class CounterargumentDiscovery:
-    """Discover counterarguments to claims"""
-    
+    """Discover counterarguments to claims using LLM + FileIntel"""
+
     async def analyze_claim(
         self,
         claim: str,
-        collection: str
+        collection: str,
+        synthesize: bool = False
     ) -> CounterargumentAnalysis
 ```
 
 **Process**:
-1. Use LLM to invert/negate claim
-2. Query FileIntel with original claim
-3. Query FileIntel with inverted claim
-4. Extract supporting evidence from (2)
-5. Extract contradicting evidence from (3)
-6. Identify gaps ("What's Missing")
-7. Format as structured analysis
+1. Use LLM to invert/negate claim (e.g., "X is good" → "X is bad")
+2. Query FileIntel with original claim → supporting evidence
+3. Query FileIntel with inverted claim → contradicting evidence
+4. Optionally use LLM to synthesize analysis
+5. Format as structured CounterargumentAnalysis
+
+**Output Structure**:
+- Original claim
+- Inverted claim
+- Supporting evidence (with citations)
+- Contradicting evidence (with citations)
+- Optional synthesis paragraph
+
+**Actual Implementation**: 259 lines in `workflows/counterargument.py`
 
 ---
 
-### 5. Citation Manager (`formatters/citations.py`)
+### 5. Citation Manager (`workflows/citation_manager.py`)
 
-**Responsibility**: Citation format conversion
+**Responsibility**: Extract, validate, and export citations
 
 ```python
 class CitationManager:
-    """Handle citation format conversion"""
-    
-    def extract_citations(self, text: str) -> List[Citation]
-    
-    def convert_to_footnotes(
-        self, 
-        text: str, 
+    """Handle citation extraction, validation, and export"""
+
+    def extract_citations_from_text(
+        self,
+        text: str,
+        extraction_mode: str = "all"
+    ) -> List[Citation]
+
+    def validate_citations(
+        self,
+        citations: List[Citation],
+        strict: bool = False
+    ) -> Dict[str, Any]
+
+    def export_to_bibtex(self, citations: List[Citation]) -> str
+    def export_to_ris(self, citations: List[Citation]) -> str
+    def export_to_json(self, citations: List[Citation]) -> str
+
+    def deduplicate_citations(
+        self,
         citations: List[Citation]
-    ) -> str
-    
-    def export_bibtex(self, citations: List[Citation]) -> str
-    
-    def deduplicate(self, citations: List[Citation]) -> List[Citation]
+    ) -> List[Citation]
 ```
 
-**Formats Supported**:
-- Inline: `(Author, Year, p.X)`
-- Footnote: `[^1]` with footnote list
-- BibTeX: Export for LaTeX
-- RIS: Export for reference managers
+**Features**:
+- Extracts citations from inline format: `(Author, Year, p.X)`
+- Extracts from footnote format: `[^1]: Author, Year...`
+- Validates citation completeness (author, year, page)
+- Exports to BibTeX, RIS, JSON formats
+- Deduplication by author+year+page
+- Strict mode validation for academic standards
+
+**Export Formats**:
+- **BibTeX**: For LaTeX integration
+- **RIS**: For reference managers (Zotero, Mendeley)
+- **JSON**: For programmatic use
+
+**Actual Implementation**: 340 lines in `workflows/citation_manager.py`
+
+---
+
+### 6. Document Processor (`workflows/document_processor.py`) **[NEW]**
+
+**Responsibility**: Smart enhancement of existing markdown documents
+
+```python
+class DocumentProcessor:
+    """Process and enhance existing academic documents"""
+
+    async def process_document(
+        self,
+        input_path: str,
+        collection: str,
+        operation: str,
+        output_path: Optional[str] = None,
+        **options
+    ) -> ProcessingResult
+```
+
+**Operations**:
+
+1. **`find_citations`**: Automatically add missing citations
+   - Identifies uncited claims
+   - Queries FileIntel for supporting evidence
+   - Inserts inline citations with sources
+
+2. **`add_evidence`**: Insert supporting evidence
+   - Scans document for claims
+   - Finds relevant sources from FileIntel
+   - Adds evidence paragraphs with citations
+
+3. **`improve_clarity`**: LLM-based simplification
+   - Uses LLM to improve readability
+   - Maintains academic tone
+   - Preserves citations
+
+4. **`find_contradictions`**: Identify opposing evidence
+   - Extracts main claims
+   - Uses counterargument discovery
+   - Highlights potential weaknesses
+
+**Process**:
+1. Load markdown document
+2. Chunk using MarkdownChunker (semantic splitting)
+3. Process each chunk based on operation
+4. Reassemble enhanced document
+5. Generate processing report
+
+**Use Cases**:
+- Enhance draft papers with citations
+- Add supporting evidence to arguments
+- Improve clarity while maintaining academic rigor
+- Identify weaknesses before submission
+
+**Actual Implementation**: 503 lines in `workflows/document_processor.py`
+
+---
+
+### 7. Markdown Chunker (`workflows/markdown_chunker.py`) **[NEW]**
+
+**Responsibility**: Semantic chunking of markdown documents
+
+```python
+class MarkdownChunker:
+    """Smart semantic chunking for markdown documents"""
+
+    def chunk_markdown(
+        self,
+        text: str,
+        target_tokens: int = 300,
+        preserve_structure: bool = True
+    ) -> List[MarkdownChunk]
+```
+
+**Features**:
+- **Heading hierarchy preservation**: Maintains H1-H6 structure
+- **Special block handling**: Preserves code blocks, blockquotes, lists
+- **Sentence-based splitting**: Chunks at natural sentence boundaries
+- **Token-aware**: Targets ~300 tokens per chunk (configurable)
+- **Context preservation**: Each chunk includes heading context
+
+**Algorithm**:
+1. Split by headings (H1-H6)
+2. For each section:
+   - Identify special blocks (code, quotes, lists)
+   - Split paragraphs into sentences
+   - Group sentences until target token count
+   - Preserve special blocks as atomic units
+3. Return chunks with metadata (heading level, context)
+
+**Use Cases**:
+- DocumentProcessor operations (process chunk by chunk)
+- Large document analysis
+- Context-aware processing
+
+**Adapted from**: FileIntel's TextChunker algorithm
+
+**Actual Implementation**: 412 lines in `workflows/markdown_chunker.py`
 
 ---
 
@@ -366,30 +550,107 @@ class CounterargumentAnalysis(BaseModel):
 
 ## Configuration
 
-```yaml
-# ~/.acadwrite/config.yaml
+**Implementation**: Pydantic Settings with environment variable support and `.env` file loading.
 
-fileintel:
-  base_url: "http://localhost:8000"
-  timeout: 30
-  max_retries: 3
+### Configuration Structure
 
-llm:
-  provider: "openai"  # openai | anthropic | ollama
-  model: "gpt-4"
-  api_key: "${OPENAI_API_KEY}"
-  temperature: 0.7
+The configuration system uses nested Pydantic models in `config.py`:
 
-output:
-  citation_style: "footnote"  # inline | footnote | endnote
-  markdown_dialect: "gfm"      # gfm | pandoc | commonmark
-  include_relevance_scores: false
+```python
+# config.py
 
-generation:
-  context_window: 500  # chars from previous section
-  min_sources_per_section: 3
-  max_sources_per_section: 10
+class FileIntelSettings(BaseSettings):
+    """FileIntel service configuration"""
+    base_url: str = "http://localhost:8000"
+    timeout: int = 30
+
+class LLMSettings(BaseSettings):
+    """LLM provider configuration"""
+    provider: str = "openai"  # openai | anthropic
+    model: str = "gpt-4"
+    api_key: Optional[str] = None
+    temperature: float = 0.7
+
+class WritingSettings(BaseSettings):
+    """Writing style configuration"""
+    citation_style: str = "inline"  # inline | footnote
+    max_words_per_section: int = 500
+
+class GenerationSettings(BaseSettings):
+    """Content generation parameters"""
+    rag_type: str = "auto"  # auto | vector | graph | hybrid
+    context_window_chars: int = 500
+
+class Settings(BaseSettings):
+    """Main settings container"""
+    fileintel: FileIntelSettings = Field(default_factory=FileIntelSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
+    writing: WritingSettings = Field(default_factory=WritingSettings)
+    generation: GenerationSettings = Field(default_factory=GenerationSettings)
+
+    class Config:
+        env_file = ".env"
+        env_nested_delimiter = "__"
 ```
+
+### Environment Variable Support
+
+Configuration can be set via environment variables with prefix support:
+
+```bash
+# FileIntel settings
+export FILEINTEL__BASE_URL="http://localhost:8000"
+export FILEINTEL__TIMEOUT=30
+
+# LLM settings
+export LLM__PROVIDER="openai"
+export LLM__MODEL="gpt-4"
+export LLM__API_KEY="sk-..."
+export LLM__TEMPERATURE=0.7
+
+# Writing settings
+export WRITING__CITATION_STYLE="inline"
+export WRITING__MAX_WORDS_PER_SECTION=500
+
+# Generation settings
+export GENERATION__RAG_TYPE="auto"
+export GENERATION__CONTEXT_WINDOW_CHARS=500
+```
+
+### .env File Support
+
+Create a `.env` file in the project root:
+
+```bash
+# .env (not committed to git)
+
+FILEINTEL__BASE_URL=http://localhost:8000
+LLM__PROVIDER=openai
+LLM__API_KEY=sk-your-api-key-here
+WRITING__CITATION_STYLE=inline
+```
+
+### CLI Configuration Commands
+
+```bash
+# Show current configuration
+acadwrite config show
+
+# Check configuration validity (verify FileIntel connection, LLM API)
+acadwrite config check
+
+# Interactive configuration setup (not yet implemented)
+acadwrite config init
+```
+
+### Defaults
+
+If no configuration is provided, sensible defaults are used:
+- FileIntel: `http://localhost:8000`
+- LLM: OpenAI GPT-4
+- Citation style: Inline
+- Max words per section: 500
+- RAG type: Auto (FileIntel decides)
 
 ---
 
@@ -513,21 +774,36 @@ Response includes complete metadata - no additional calls needed:
 
 ## Testing Strategy
 
-### Unit Tests
-- FileIntel client (mocked responses)
-- Citation formatters
-- Outline parser
-- Text processing utilities
+### Unit Tests (`tests/unit/`)
 
-### Integration Tests
-- End-to-end section generation
-- Chapter generation from sample outline
-- Counterargument discovery
+Comprehensive unit tests with mocked dependencies:
+- `test_fileintel_client.py` - FileIntel API client
+- `test_llm_client.py` - LLM service integration
+- `test_formatters.py` - Citation formatting
+- `test_models.py` - Pydantic models
+- `test_section_generator.py` - Section generation
+- `test_chapter_processor.py` - Chapter processing
+- `test_counterargument.py` - Counterargument discovery
+- `test_citation_manager.py` - Citation management
+- `test_document_processor.py` - Document enhancement
+- `test_markdown_chunker.py` - Semantic chunking
 
-### Test Fixtures
+### Integration Tests (`tests/integration/`)
+
+End-to-end tests with real FileIntel instance:
+- `test_fileintel_integration.py` - FileIntel API integration
+- `test_section_generator_integration.py` - Section generation workflow
+- `test_chapter_processor_integration.py` - Chapter generation workflow
+- `test_counterargument_integration.py` - Counterargument workflow
+- `test_citation_manager_integration.py` - Citation extraction/export
+- `test_document_processor_integration.py` - Document enhancement workflow
+- `test_end_to_end.py` - Complete workflows
+
+### Test Fixtures (`tests/integration/conftest.py`)
 - Sample FileIntel responses
 - Sample outlines (YAML/Markdown)
 - Expected markdown outputs
+- Mock LLM responses
 
 ---
 
@@ -598,53 +874,98 @@ export OPENAI_API_KEY="sk-..."
 
 ## Development Phases
 
-### Phase 1: Foundation (Week 1)
-- [ ] Project setup (Poetry, testing, linting)
-- [ ] FileIntel client implementation
-- [ ] Basic CLI structure (Typer)
-- [ ] Configuration management
+### Phase 1: Foundation ✅ **COMPLETED**
+- [x] Project setup (Poetry, testing, linting)
+- [x] FileIntel client implementation (`services/fileintel.py`)
+- [x] CLI structure (single-file Typer in `cli.py`)
+- [x] Configuration management (Pydantic Settings in `config.py`)
 
-### Phase 2: Core Workflows (Week 2)
-- [ ] Section generator
-- [ ] Citation formatter
-- [ ] Outline parser
-- [ ] Basic chapter generation
+### Phase 2: Core Workflows ✅ **COMPLETED**
+- [x] Section generator (`workflows/section_generator.py`)
+- [x] Citation formatter (`services/formatter.py`)
+- [x] Outline parser (integrated in `models/outline.py`)
+- [x] Chapter generation (`workflows/chapter_processor.py`)
 
-### Phase 3: Advanced Features (Week 3)
-- [ ] Counterargument discovery
-- [ ] LLM integration (claim inversion)
-- [ ] BibTeX export
-- [ ] Citation deduplication
+### Phase 3: Advanced Features ✅ **COMPLETED**
+- [x] Counterargument discovery (`workflows/counterargument.py`)
+- [x] LLM integration (`services/llm.py` - OpenAI/Anthropic)
+- [x] BibTeX/RIS/JSON export (`workflows/citation_manager.py`)
+- [x] Citation deduplication
 
-### Phase 4: Polish (Week 4)
-- [ ] Error handling improvements
-- [ ] Progress indicators
-- [ ] Documentation
-- [ ] Example workflows
+### Phase 4: Polish & Extensions ✅ **COMPLETED**
+- [x] Error handling improvements
+- [x] Progress indicators (Rich console)
+- [x] Documentation (ARCHITECTURE.md, QUICK_REFERENCE.md)
+- [x] Comprehensive test suite (unit + integration)
+
+### MVP 0.1 Extensions ✅ **COMPLETED** (Beyond Original Scope)
+- [x] **DocumentProcessor** - Smart document enhancement
+- [x] **MarkdownChunker** - Semantic markdown chunking
+- [x] **CitationManager** - Complete citation toolkit
+- [x] **Advanced operations**: find_citations, add_evidence, improve_clarity, find_contradictions
 
 ---
 
 ## Related Documentation
 
-- `API_SPEC.md`: Detailed FileIntel API integration
-- `WORKFLOWS.md`: Step-by-step workflow descriptions
-- `PROMPTS.md`: LLM prompt templates and engineering
-- `USER_GUIDE.md`: End-user documentation
-- `DEVELOPMENT.md`: Development setup and guidelines
+- `QUICK_REFERENCE.md`: Quick reference guide for all commands
+- `FILEINTEL_API_VERIFIED.md`: Verified FileIntel API reference with examples
+- `INTEGRATION_TESTS_SUMMARY.md`: Integration test results and coverage
+- `EDITOR_INTEGRATION_GUIDE.md` (examples/): Guide for editor integration
+- Additional implementation notes:
+  - `SMART_PROCESSING.md`: Smart document processing features
+  - `INTERACTIVE_WORKFLOW.md`: Interactive workflow design
+  - `SMART_CHUNKING_IMPLEMENTATION_SUMMARY.md`: Chunking algorithm details
 
 ---
 
 ## Glossary
 
-- **FileIntel**: The underlying hybrid RAG platform
+- **FileIntel**: The underlying hybrid RAG platform providing document intelligence
 - **Collection**: A set of ingested documents in FileIntel
 - **Section**: A single subsection of an academic document (e.g., "3.1.2 Core Principles")
-- **Outline**: Hierarchical structure defining document sections
+- **Outline**: Hierarchical structure (YAML/Markdown) defining document sections
 - **Claim**: A statement to be supported or refuted with evidence
 - **Counterargument**: Evidence that contradicts a given claim
+- **Chunk**: A semantic unit of text (~300 tokens) preserving structure
+- **RAG**: Retrieval-Augmented Generation (vector/graph/hybrid search)
+- **Citation Style**: Formatting style (inline, footnote, BibTeX, RIS, JSON)
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-10-24  
-**Author**: Architecture specification for AI agent development
+## Changelog
+
+### Version 2.0 (2025-11-05) - MVP 0.1 Implementation
+**Major changes from original specification:**
+
+- Renamed `core/` → `services/` for better semantic clarity
+- Consolidated CLI into single `cli.py` file (722 lines)
+- Expanded `models.py` → `models/` package (outline, query, section)
+- Moved `config.py` to top-level (Pydantic Settings)
+- Empty directories: `formatters/`, `prompts/`, `utils/` (functionality consolidated)
+
+**New workflows added:**
+- `DocumentProcessor` - Smart enhancement of existing documents
+- `MarkdownChunker` - Semantic markdown chunking
+- `CitationManager` - Complete citation management toolkit
+
+**New operations:**
+- `find_citations` - Auto-add missing citations
+- `add_evidence` - Insert supporting evidence
+- `improve_clarity` - LLM-based simplification
+- `find_contradictions` - Identify opposing evidence
+
+**Test coverage:**
+- 10 unit test modules
+- 7 integration test modules
+- Comprehensive mocking and fixtures
+
+### Version 1.0 (2025-10-24) - Original Specification
+Initial architecture design for AI agent development.
+
+---
+
+**Document Version**: 2.0
+**Last Updated**: 2025-11-05
+**Status**: Reflects MVP 0.1 implementation
+**Maintained by**: Architecture updates via AI-assisted development

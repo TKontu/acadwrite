@@ -12,6 +12,7 @@ class FileIntelSettings(BaseSettings):
     """FileIntel RAG platform configuration."""
 
     base_url: str = Field(default="http://localhost:8000", description="FileIntel API URL")
+    api_key: str | None = Field(default=None, description="API key for authentication (X-API-Key header)")
     timeout: int = Field(default=30, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
 
@@ -48,6 +49,9 @@ class WritingSettings(BaseSettings):
     )
     include_relevance_scores: bool = Field(
         default=False, description="Include relevance scores in output"
+    )
+    max_words_per_section: int = Field(
+        default=500, description="Maximum words per section"
     )
 
     model_config = SettingsConfigDict(env_prefix="WRITING_")

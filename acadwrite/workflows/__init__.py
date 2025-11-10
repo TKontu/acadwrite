@@ -12,6 +12,12 @@ from acadwrite.workflows.counterargument import (
     CounterargumentReport,
     Evidence,
 )
+from acadwrite.workflows.document_processor import (
+    DocumentProcessor,
+    ProcessedChunk,
+    ProcessedDocument,
+)
+from acadwrite.workflows.markdown_chunker import Chunk, ChunkType, MarkdownChunker
 from acadwrite.workflows.section_generator import SectionGenerator
 
 __all__ = [
@@ -25,4 +31,10 @@ __all__ = [
     "ChapterMetadata",
     "CitationManager",
     "CitationCheck",
+    "MarkdownChunker",
+    "Chunk",
+    "ChunkType",
+    "DocumentProcessor",
+    "ProcessedChunk",
+    "ProcessedDocument",
 ]

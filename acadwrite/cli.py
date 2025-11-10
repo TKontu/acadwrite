@@ -22,6 +22,7 @@ from acadwrite.workflows import (
     CounterargumentReport,
     SectionGenerator,
 )
+from acadwrite.workflows.marker_expander import MarkerExpander
 
 app = typer.Typer(
     name="acadwrite",
@@ -120,6 +121,7 @@ async def _generate_async(
 
         async with FileIntelClient(
             base_url=settings.fileintel.base_url,
+            api_key=settings.fileintel.api_key,
             timeout=settings.fileintel.timeout,
         ) as client:
             formatter = FormatterService()
@@ -154,7 +156,7 @@ async def _generate_async(
     # Output result
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(markdown_output)
+        output.write_text(markdown_output, encoding="utf-8")
         console.print(f"[green]Section saved to {output}[/green]")
         console.print(f"Word count: {section.word_count()}")
         console.print(f"Citations: {len(section.citations)}")
@@ -254,6 +256,7 @@ async def _chapter_async(
 
         async with FileIntelClient(
             base_url=settings.fileintel.base_url,
+            api_key=settings.fileintel.api_key,
             timeout=settings.fileintel.timeout,
         ) as fileintel:
             formatter = FormatterService()
@@ -342,6 +345,7 @@ async def _contra_async(
 
         async with FileIntelClient(
             base_url=settings.fileintel.base_url,
+            api_key=settings.fileintel.api_key,
             timeout=settings.fileintel.timeout,
         ) as fileintel:
             llm = LLMClient(
@@ -377,7 +381,7 @@ async def _contra_async(
     # Output result
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(markdown_output)
+        output.write_text(markdown_output, encoding="utf-8")
         console.print(f"[green]Report saved to {output}[/green]")
         console.print(f"Supporting evidence: {len(report.supporting_evidence)} sources")
         console.print(f"Contradicting evidence: {len(report.contradicting_evidence)} sources")
@@ -514,7 +518,7 @@ def citations_extract(
     # Output result
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(export_text)
+        output.write_text(export_text, encoding="utf-8")
         console.print(f"[green]Citations exported to {output}[/green]")
     else:
         console.print("\n" + export_text)
@@ -719,3 +723,155 @@ def config_init(
     """Create a default configuration file."""
     console.print(f"[yellow]Command 'config init' not yet implemented[/yellow]")
     console.print(f"Would create config at: {output}")
+
+
+@app.command()
+def expand(
+    file_path: Path = typer.Argument(..., help="Markdown file with expansion markers"),
+    collection: str = typer.Option(..., "-c", "--collection", help="FileIntel collection to query"),
+    output: Optional[Path] = typer.Option(None, "-o", "--output", help="Output file (default: overwrite input)"),
+    backup: bool = typer.Option(True, "--backup/--no-backup", help="Create backup before modifying"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without modifying file"),
+    search_type: Optional[str] = typer.Option(
+        None,
+        "--search-type", "--type",
+        help="Override search type: vector, graph, adaptive, global, local"
+    ),
+    answer_format: Optional[str] = typer.Option(
+        None,
+        "--format", "--answer-format",
+        help="Override answer format: default, table, list, json, essay, markdown"
+    ),
+) -> None:
+    """Expand AcadWrite markers in markdown file.
+
+    Markers syntax:
+
+        <!-- ACADWRITE: expand -->
+        - Topic: Your topic here
+        - Focus: Specific focus
+        <!-- END ACADWRITE -->
+
+    Or with parameters:
+
+        <!-- ACADWRITE: expand type=global format=table -->
+        Content here
+        <!-- END ACADWRITE -->
+
+    Operations: expand, evidence, citations, clarity, contradict
+
+    Example:
+
+        acadwrite expand paper.md -c research
+    """
+    settings = Settings()
+
+    # Validate file exists
+    if not file_path.exists():
+        console.print(f"[red]Error: File not found: {file_path}[/red]")
+        raise typer.Exit(1)
+
+    # Create backup if requested and not dry run
+    if backup and not dry_run:
+        backup_path = file_path.with_suffix(file_path.suffix + ".backup")
+        import shutil
+        shutil.copy2(file_path, backup_path)
+        console.print(f"[dim]Created backup: {backup_path}[/dim]")
+
+    # Run expansion
+    async def run_expansion():
+        async with FileIntelClient(
+            base_url=settings.fileintel.base_url,
+            api_key=settings.fileintel.api_key,
+            timeout=settings.fileintel.timeout
+        ) as fileintel:
+            # Create LLM client if configured
+            llm = None
+            if settings.llm.api_key:
+                llm = LLMClient(
+                    base_url=settings.llm.base_url,
+                    model=settings.llm.model,
+                    api_key=settings.llm.api_key,
+                    temperature=settings.llm.temperature,
+                )
+
+            expander = MarkerExpander(
+                fileintel_client=fileintel,
+                llm_client=llm,
+                settings=settings,
+                console=console,
+            )
+
+            expanded_text, expansions = await expander.expand_file(
+                file_path=file_path,
+                collection=collection,
+                dry_run=dry_run,
+                default_search_type=search_type,
+                default_answer_format=answer_format,
+            )
+
+            # Show results
+            if dry_run:
+                console.print("\n[bold]Dry run - no files modified[/bold]")
+                console.print(f"\nWould expand {len([e for e in expansions if e.success])} marker(s)")
+                for i, exp in enumerate(expansions, 1):
+                    if exp.success:
+                        console.print(f"\n[cyan]Marker {i} ({exp.marker.operation.value}):[/cyan]")
+                        console.print(f"[dim]{exp.generated_content[:200]}...[/dim]")
+            else:
+                # Collect all citations
+                all_citations = []
+                for exp in expansions:
+                    all_citations.extend(exp.citations)
+
+                # Add bibliography if citations exist
+                final_text = expanded_text
+                if all_citations and settings.writing.citation_style == "footnote":
+                    # Deduplicate citations using full_citation as key
+                    # (avoids issues with None values in author/year/page)
+                    seen = set()
+                    unique_citations = []
+                    for cit in all_citations:
+                        if cit.full_citation not in seen:
+                            seen.add(cit.full_citation)
+                            unique_citations.append(cit)
+
+                    # Renumber citations sequentially to avoid ID collisions
+                    # (each marker expansion starts from 1, causing duplicates)
+                    # Create new Citation instances to avoid mutating Pydantic models
+                    renumbered_citations = []
+                    for i, cit in enumerate(unique_citations, 1):
+                        renumbered_citations.append(
+                            Citation(
+                                id=i,
+                                author=cit.author,
+                                title=cit.title,
+                                year=cit.year,
+                                page=cit.page,
+                                full_citation=cit.full_citation,
+                            )
+                        )
+
+                    # Add bibliography section
+                    final_text += "\n\n---\n\n## References\n\n"
+                    for cit in renumbered_citations:
+                        final_text += f"{cit.id}. {cit.full_citation}\n"
+
+                # Write output
+                output_path = output or file_path
+                output_path.write_text(final_text, encoding="utf-8")
+
+                # Summary
+                successful = len([e for e in expansions if e.success])
+                failed = len([e for e in expansions if not e.success])
+
+                console.print(f"\n[green]✓ Expanded {successful} marker(s)[/green]")
+                if failed:
+                    console.print(f"[red]✗ Failed to expand {failed} marker(s)[/red]")
+
+                console.print(f"\n[bold]Output written to:[/bold] {output_path}")
+
+                if all_citations:
+                    console.print(f"\n[cyan]Added {len(all_citations)} citation(s)[/cyan]")
+
+    asyncio.run(run_expansion())
